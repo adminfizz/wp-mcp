@@ -4,7 +4,7 @@ import "dotenv/config";
 import TelegramBot from "node-telegram-bot-api";
 import { initMcp } from "./mcpClient.js";
 import { handleCommand } from "./commands.js";
-import { runAgent } from "./agent.js";
+import { runAgent, trimHistory } from "./agent.js";
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
@@ -44,8 +44,8 @@ bot.on("message", async (msg) => {
     await bot.sendChatAction(msg.chat.id, "typing");
     const history = histories.get(msg.chat.id) || [];
     const { text: reply, messages } = await runAgent(text, history);
-    // เก็บประวัติไว้ 12 ข้อความล่าสุด
-    histories.set(msg.chat.id, messages.slice(-12));
+    // เก็บประวัติแบบตัดที่ขอบ user turn (กัน 400)
+    histories.set(msg.chat.id, trimHistory(messages, 12));
     await bot.sendMessage(msg.chat.id, reply || "เรียบร้อยค่ะ");
   } catch (e) {
     console.error("handle error:", e);

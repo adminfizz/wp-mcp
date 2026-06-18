@@ -77,9 +77,27 @@ async function runTool(name, args) {
     imageStore.set(ref, { base64, mime });
     return `สร้างรูปแล้ว (ref="${ref}") — ใส่ใน featured_image: { ref: "${ref}", alt: "..." }`;
   }
-  const resolved = resolveImageRefs(args);
+  // ★ สำคัญ: clone ก่อน เพราะ args === block.input (อยู่ใน messages ที่ส่งกลับ Claude)
+  // ถ้าแก้ตรงๆ จะทำให้ base64 ก้อนใหญ่รั่วเข้า context และถูกเก็บข้ามรอบ
+  const resolved = resolveImageRefs(structuredClone(args));
   const { text, isError } = await callTool(name, resolved);
   return isError ? `ERROR: ${text}` : text;
+}
+
+/**
+ * ตัดประวัติแบบปลอดภัย: เริ่ม window ที่ "user turn จริง" เสมอ
+ * กัน 400 จาก (1) ขึ้นต้นด้วย assistant (2) tool_result ที่ขาด tool_use คู่กัน
+ */
+export function trimHistory(messages, max = 12) {
+  if (messages.length <= max) return messages;
+  const isCleanUserTurn = (m) =>
+    m.role === "user" &&
+    (typeof m.content === "string" ||
+      (Array.isArray(m.content) && !m.content.some((b) => b && b.type === "tool_result")));
+  for (let i = messages.length - max; i < messages.length; i++) {
+    if (isCleanUserTurn(messages[i])) return messages.slice(i);
+  }
+  return []; // ไม่เจอ boundary ปลอดภัย → เริ่มใหม่ ดีกว่าส่ง window ที่พัง
 }
 
 /**
