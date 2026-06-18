@@ -45,10 +45,7 @@ function kim_mcp_request_key( WP_REST_Request $request ) {
 	if ( ! $key && isset( $_SERVER['HTTP_X_KIM_KEY'] ) ) {
 		$key = $_SERVER['HTTP_X_KIM_KEY'];
 	}
-	// เผื่อบางเคสส่งมาทาง query (?kim_key=) สำหรับทดสอบเท่านั้น
-	if ( ! $key ) {
-		$key = $request->get_param( 'kim_key' );
-	}
+	// รับ key ผ่าน header X-Kim-Key เท่านั้น (ไม่รับผ่าน query string เพื่อกัน key รั่วเข้า access log/Referer)
 	return is_string( $key ) ? trim( $key ) : '';
 }
 

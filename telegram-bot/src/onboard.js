@@ -47,7 +47,7 @@ async function jfetch(jar, url, opts = {}) {
     const headers = { ...(opts.headers || {}) };
     const cookie = jar.header();
     if (cookie) headers.Cookie = cookie;
-    res = await fetch(cur, { ...opts, headers, redirect: "manual" });
+    res = await fetch(cur, { ...opts, headers, redirect: "manual", signal: AbortSignal.timeout(30000) });
     jar.store(res);
     if (followGet && res.status >= 300 && res.status < 400) {
       const loc = res.headers.get("location");
@@ -178,7 +178,7 @@ export async function onboard({ url, user, pass, statusCb }) {
   });
   // ยืนยันจริง: เรียก health ด้วย key ใหม่ (พิสูจน์ว่า key ถูกบันทึก + ปลั๊กอิน active + เข้าถึงได้)
   // เชื่อถือได้กว่าเช็ค status เพราะ options.php สำเร็จ=302 แต่ error (wp_die) คืน 200
-  const hv = await fetch(`${url}/wp-json/kim/v1/health`, { headers: { "X-Kim-Key": key } });
+  const hv = await fetch(`${url}/wp-json/kim/v1/health`, { headers: { "X-Kim-Key": key }, signal: AbortSignal.timeout(20000) });
   if (!hv.ok)
     throw new Error(`ตั้ง key แล้วแต่ทดสอบไม่ผ่าน (health HTTP ${hv.status}) — ปลั๊กอินอาจ activate ไม่สำเร็จ หรือ nonce ไม่ถูก`);
   say("✅ ตั้ง key + ยืนยัน health สำเร็จ");

@@ -63,6 +63,14 @@ export function addSite(name, url, key) {
   writeRaw(raw);
 }
 
+/** ตั้งค่า workflow (เชื่อมปลั๊กอินอื่น) ให้เว็บ */
+export function setWorkflow(name, workflow) {
+  const raw = readRaw();
+  if (!raw[name]) throw new Error(`ไม่พบเว็บ "${name}"`);
+  raw[name].workflow = workflow;
+  writeRaw(raw);
+}
+
 /** ลบเว็บออกจากทะเบียน */
 export function removeSite(name) {
   if (name.startsWith("_")) return false; // กันลบ metadata เช่น _comment

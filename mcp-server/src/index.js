@@ -6,6 +6,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { callWp } from "./wpClient.js";
 import { listSiteNames, reloadSites } from "./registry.js";
+import { submitTopic, getStatus } from "./workflowClient.js";
 
 const server = new McpServer({ name: "wp-mcp-server", version: "0.1.0" });
 
@@ -253,6 +254,34 @@ server.registerTool(
   async ({ domain, name, payload }) => {
     try {
       return ok(await callWp(domain, "POST", `/action/${name}`, payload || {}));
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+// ---- workflow: เชื่อมปลั๊กอินอื่น (REST API ของปลั๊กอิน workflow เดิม) ----
+server.registerTool(
+  "workflow_submit_topic",
+  {
+    description: "ส่ง 'หัวข้อ' ให้ปลั๊กอิน workflow เดิมของโดเมนไปสร้างบทความ/รูป (ต้องตั้งค่า workflow ของโดเมนนั้นก่อน)",
+    inputSchema: { domain, topic: z.string(), extra: z.record(z.any()).optional() },
+  },
+  async ({ domain, topic, extra }) => {
+    try {
+      return ok(await submitTopic(domain, topic, extra || {}));
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.registerTool(
+  "workflow_status",
+  { description: "ดูสถานะ/คิวงานของปลั๊กอิน workflow เดิมของโดเมน", inputSchema: { domain } },
+  async ({ domain }) => {
+    try {
+      return ok(await getStatus(domain));
     } catch (e) {
       return fail(e);
     }

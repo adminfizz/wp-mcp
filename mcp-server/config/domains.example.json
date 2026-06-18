@@ -1,8 +1,17 @@
 {
   "_comment": "ก็อปไฟล์นี้เป็น domains.json แล้วใส่ของจริง (domains.json อยู่ใน .gitignore)",
+  "_workflow_note": "บล็อก workflow = ไว้เชื่อม REST API ของปลั๊กอินอื่น (เช่น ปลั๊กอิน workflow เดิม) ใส่หรือไม่ใส่ก็ได้",
   "siteA": {
     "url": "https://example-a.com",
-    "key": "ใส่ API key ที่ตั้งใน Settings>Kim MCP ของเว็บนี้"
+    "key": "ใส่ API key ที่ตั้งใน Settings>Kim MCP ของเว็บนี้",
+    "workflow": {
+      "submit_url": "https://example-a.com/wp-json/ชื่อปลั๊กอิน/v1/generate",
+      "method": "POST",
+      "topic_field": "topic",
+      "status_url": "https://example-a.com/wp-json/ชื่อปลั๊กอิน/v1/jobs",
+      "auth": { "type": "bearer", "value": "TOKEN_ของปลั๊กอินนั้น" },
+      "extra": { "language": "th" }
+    }
   },
   "siteB": {
     "url": "https://example-b.com",

@@ -81,7 +81,7 @@ function resolveImageRefs(args) {
 }
 
 // รัน tool หนึ่ง (generate_image รันในบอท, ที่เหลือส่งเข้า MCP)
-async function runTool(name, args) {
+async function runTool(name, args, chatId) {
   if (name === "generate_image") {
     const { base64, mime } = await generateImage(args.prompt || "");
     const ref = `img_${++imgCounter}`;

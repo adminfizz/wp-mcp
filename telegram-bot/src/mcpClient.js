@@ -24,6 +24,11 @@ export function initMcp() {
       // ส่ง DOMAINS_FILE เป็น absolute → บอท (sites.js) เขียน / MCP (registry.js) อ่าน ไฟล์เดียวกันแน่นอน
       env: { ...process.env, DOMAINS_FILE: domainsFilePath() },
     });
+    // ถ้า MCP child ตายหลังเชื่อมแล้ว (crash/OOM/ถูก kill) → reset เพื่อให้ initMcp() spawn ใหม่
+    transport.onclose = () => {
+      console.error("MCP transport ปิด — จะ spawn ใหม่เมื่อมีคำสั่งถัดไป");
+      _clientPromise = null;
+    };
     const client = new Client({ name: "wp-mcp-bot", version: "0.1.0" });
     await client.connect(transport);
     return client;

@@ -28,7 +28,10 @@ export function loadSites() {
   for (const [name, cfg] of Object.entries(raw)) {
     if (name.startsWith("_")) continue; // ข้าม _comment
     if (!cfg || !cfg.url || !cfg.key) continue;
-    sites[name] = { url: String(cfg.url).replace(/\/+$/, ""), key: String(cfg.key) };
+    const entry = { url: String(cfg.url).replace(/\/+$/, ""), key: String(cfg.key) };
+    // เก็บบล็อก workflow (สำหรับเชื่อม REST API ปลั๊กอินอื่นต่อโดเมน) ถ้ามี
+    if (cfg.workflow && typeof cfg.workflow === "object") entry.workflow = cfg.workflow;
+    sites[name] = entry;
   }
   _sites = sites;
   return sites;
@@ -47,6 +50,14 @@ export function getSite(domain) {
     throw new Error(`ไม่รู้จักโดเมน "${domain}" — โดเมนที่มี: ${names}`);
   }
   return site;
+}
+
+export function getWorkflow(domain) {
+  const site = getSite(domain);
+  if (!site.workflow || !site.workflow.submit_url) {
+    throw new Error(`โดเมน "${domain}" ยังไม่ได้ตั้งค่า workflow (ปลั๊กอินอื่น) — ใช้ /setworkflow ก่อน`);
+  }
+  return site.workflow;
 }
 
 export function listSiteNames() {

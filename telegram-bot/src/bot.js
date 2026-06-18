@@ -18,7 +18,7 @@ const bot = new TelegramBot(token, { polling: true });
 // เช็คสิทธิ์ผู้สั่ง (เหมือน slip-bot)
 function allowed(msg) {
   const list = (process.env.ALLOWED_CHAT_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
-  if (list.length === 0) return true; // ว่าง = อนุญาตทุกคน
+  if (list.length === 0) return false; // fail-closed: ยังไม่ตั้ง allowlist = ปฏิเสธทุกคน (ปลอดภัย)
   return list.includes(String(msg.chat.id));
 }
 
@@ -37,6 +37,12 @@ bot.on("message", async (msg) => {
     // 1) ลองจับ slash command ก่อน
     const cmdReply = await handleCommand(text, msg.chat.id);
     if (cmdReply !== null) {
+      // ลบข้อความ /onboard อัตโนมัติ (มีรหัส admin อยู่ในข้อความ)
+      if (text.trim().startsWith("/onboard")) {
+        try {
+          await bot.deleteMessage(msg.chat.id, msg.message_id);
+        } catch {}
+      }
       await bot.sendMessage(msg.chat.id, cmdReply);
       return;
     }
@@ -76,12 +82,33 @@ bot.on("polling_error", (e) => console.error("polling_error:", e.message));
       { command: "draft", description: "เปลี่ยนเป็น draft [ชื่อ] <id>" },
       { command: "delete", description: "ลบโพสต์ [ชื่อ] <id>" },
       { command: "action", description: "สั่ง custom action [ชื่อ] <action> [json]" },
+      { command: "setworkflow", description: "ตั้งค่า API ปลั๊กอินอื่น <ชื่อ> <json>" },
+      { command: "topic", description: "ส่งหัวข้อให้ปลั๊กอินอื่น [ชื่อ] <หัวข้อ>" },
+      { command: "jobs", description: "สถานะ/คิวงานปลั๊กอินอื่น [ชื่อ]" },
       { command: "removesite", description: "เอาเว็บออก <ชื่อ>" },
       { command: "help", description: "ช่วยเหลือ" },
     ]);
+    if (!(process.env.ALLOWED_CHAT_IDS || "").trim()) {
+      console.warn("⚠️ ยังไม่ตั้ง ALLOWED_CHAT_IDS — บอทจะปฏิเสธทุกคน. ทักบอทเพื่อดู chat id ของคุณ แล้วใส่ใน .env");
+    }
     console.log("wp-mcp-bot พร้อมทำงาน ✅");
   } catch (e) {
     console.error("เริ่มบอทไม่สำเร็จ:", e.message);
     process.exit(1);
   }
 })();
+
+// graceful shutdown — หยุด polling สะอาดตอน pm2 restart/stop
+let _shuttingDown = false;
+async function shutdown(sig) {
+  if (_shuttingDown) return;
+  _shuttingDown = true;
+  console.log(`รับสัญญาณ ${sig} — กำลังปิดบอท...`);
+  try {
+    await bot.stopPolling({ cancel: true });
+  } catch {}
+  process.exit(0);
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("unhandledRejection", (e) => console.error("unhandledRejection:", e?.message || e));

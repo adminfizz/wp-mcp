@@ -1,7 +1,7 @@
 // commands.js — slash command ชุดเต็ม (ทางลัด ไม่ผ่าน Claude เพื่อความเร็ว/ประหยัด token)
 // ครอบคลุม: login/เชื่อมเว็บ, เลือกโดเมน, อ่านข้อมูล, จัดการโพสต์รายเว็บ
 import { callTool } from "./mcpClient.js";
-import { addSite, removeSite, hasSite, listSites } from "./sites.js";
+import { addSite, removeSite, hasSite, listSites, setWorkflow } from "./sites.js";
 import { onboard } from "./onboard.js";
 import { logEvent, readLog } from "./logger.js";
 
@@ -38,8 +38,11 @@ const HELP = `📋 คำสั่งทั้งหมดค่ะ
 /draft [ชื่อ] <id> — เปลี่ยนเป็น draft
 /delete [ชื่อ] <id> — ลบโพสต์
 
-— ต่อปลั๊กอิน/ฟังก์ชันเดิมของเว็บ —
-/action [ชื่อ] <action> [json] — สั่ง custom action (เช่น เคลียร์แคช, sync สต็อก)
+— ต่อปลั๊กอินอื่น (REST API) —
+/setworkflow <ชื่อ> <json> — ตั้งค่า API ปลั๊กอินอื่นของเว็บ (ครั้งเดียว)
+/topic [ชื่อ] <หัวข้อ> — ส่งหัวข้อให้ปลั๊กอินนั้นไปสร้างบทความ
+/jobs [ชื่อ] — ดูสถานะ/คิวงานของปลั๊กอินนั้น
+/action [ชื่อ] <action> [json] — สั่ง custom action (เคลียร์แคช ฯลฯ)
 
 — ภาษาไทย (เขียนบทความ/งานซับซ้อน) —
 พิมพ์ได้เลย เช่น "เขียนบทความเรื่องวิธีชงกาแฟลงเว็บA ใส่รูปด้วย"`;
@@ -243,6 +246,49 @@ export async function handleCommand(text, chatId) {
       const res = await callTool("wp_run_action", { domain, name, payload });
       logEvent({ level: res.isError ? "warn" : "info", domain, chat: chatId, cmd: `action:${name}`, msg: res.isError ? res.text.slice(0, 120) : "ok" });
       return res.text;
+    }
+
+    case "/setworkflow": {
+      // /setworkflow <เว็บ> <json> — ตั้งค่า REST API ของปลั๊กอินอื่น
+      const domain = rest[0];
+      const json = rest.slice(1).join(" ");
+      if (!domain || !json)
+        return 'รูปแบบ: /setworkflow <เว็บ> <json>\nเช่น /setworkflow siteA {"submit_url":"https://a.com/wp-json/x/v1/gen","auth":{"type":"bearer","value":"TOKEN"},"topic_field":"topic","status_url":"https://a.com/wp-json/x/v1/jobs"}';
+      if (!hasSite(domain)) return `ไม่พบเว็บ "${domain}" — /addsite ก่อน`;
+      let wf;
+      try {
+        wf = JSON.parse(json);
+      } catch {
+        return "JSON ไม่ถูกต้องค่ะ (ตรวจวงเล็บ/เครื่องหมายคำพูด)";
+      }
+      if (!wf.submit_url || !/^https?:\/\//.test(wf.submit_url)) return "ต้องมี submit_url (ขึ้นต้น http/https)";
+      setWorkflow(domain, wf);
+      await callTool("reload_sites", {});
+      logEvent({ level: "info", domain, chat: chatId, cmd: "setworkflow", msg: wf.submit_url });
+      return `✅ ตั้งค่า workflow ให้ "${domain}" แล้ว — ลอง: /topic ${domain} หัวข้อทดสอบ`;
+    }
+
+    case "/topic": {
+      const t = rest.filter(Boolean);
+      let domain, topic;
+      if (t.length >= 1 && hasSite(t[0])) {
+        domain = t[0];
+        topic = t.slice(1).join(" ");
+      } else {
+        domain = getActive(chatId);
+        topic = t.join(" ");
+      }
+      if (!domain) return "เลือกเว็บก่อน (/use <ชื่อ>) หรือ /topic <เว็บ> <หัวข้อ>";
+      if (!topic) return "ใส่หัวข้อด้วยค่ะ เช่น /topic วิธีชงกาแฟดริป";
+      const res = await callTool("workflow_submit_topic", { domain, topic });
+      logEvent({ level: res.isError ? "warn" : "info", domain, chat: chatId, cmd: "ส่งหัวข้อ", msg: res.isError ? res.text.slice(0, 120) : topic.slice(0, 50) });
+      return res.isError ? res.text : `✅ ส่งหัวข้อ "${topic}" ให้ ${domain} แล้วค่ะ\n${res.text}`;
+    }
+
+    case "/jobs": {
+      const domain = arg || getActive(chatId);
+      if (!domain) return "เลือกเว็บก่อน (/use <ชื่อ>) หรือ /jobs <เว็บ>";
+      return (await callTool("workflow_status", { domain })).text;
     }
 
     default:

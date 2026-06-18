@@ -15,15 +15,25 @@ const NS = "/wp-json/kim/v1";
 export async function callWp(domain, method, path, body) {
   const site = getSite(domain);
   const url = `${site.url}${NS}${path}`;
-  const res = await fetch(url, {
-    method,
-    headers: {
-      "X-Kim-Key": site.key,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const timeoutMs = Number(process.env.WP_TIMEOUT_MS || 20000);
+  let res;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: {
+        "X-Kim-Key": site.key,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    if (e.name === "TimeoutError" || e.name === "AbortError") {
+      throw new Error(`[${domain}] ${method} ${path} → timeout (เกิน ${timeoutMs}ms — เว็บช้า/ไม่ตอบ)`);
+    }
+    throw new Error(`[${domain}] ${method} ${path} → เข้าไม่ถึงเว็บ: ${e.message}`);
+  }
 
   const text = await res.text();
   let data;
