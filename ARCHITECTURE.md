@@ -119,8 +119,9 @@ wp-mcp/
     │   ├── bot.js             ← รับข้อความ Telegram + active domain ต่อแชท
     │   ├── mcpClient.js       ← ★ เชื่อม MCP (spawn ชั้น 2)
     │   ├── agent.js           ← ★ Claude agent loop (NL → tools)
-    │   ├── commands.js        ← slash ชุดเต็ม: login/addsite/use/publish...
+    │   ├── commands.js        ← slash ชุดเต็ม: login/addsite/onboard/use/publish...
     │   ├── sites.js           ← จัดการทะเบียนเว็บ (เขียน domains.json ตอน /addsite)
+    │   ├── onboard.js         ← ติดตั้งปลั๊กอินอัตโนมัติผ่าน wp-admin (/onboard)
     │   └── gemini.js          ← สร้างรูปจากเนื้อหา
     └── .env.example
 

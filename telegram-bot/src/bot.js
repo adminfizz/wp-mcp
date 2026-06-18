@@ -61,7 +61,8 @@ bot.on("polling_error", (e) => console.error("polling_error:", e.message));
     await initMcp();
     await bot.setMyCommands([
       { command: "login", description: "ดูสถานะ + เว็บที่เชื่อม" },
-      { command: "addsite", description: "เชื่อมเว็บใหม่ <ชื่อ> <url> <key>" },
+      { command: "addsite", description: "เชื่อมเว็บที่ลงปลั๊กอินแล้ว <ชื่อ> <url> <key>" },
+      { command: "onboard", description: "ติดตั้งปลั๊กอินอัตโนมัติ <ชื่อ> <url> <user> <pass>" },
       { command: "sites", description: "ดูเว็บทั้งหมด" },
       { command: "use", description: "เลือกเว็บที่จะสั่งงาน <ชื่อ>" },
       { command: "report", description: "สรุปภาพรวมเว็บ [ชื่อ]" },

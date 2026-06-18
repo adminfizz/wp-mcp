@@ -2,6 +2,7 @@
 // ครอบคลุม: login/เชื่อมเว็บ, เลือกโดเมน, อ่านข้อมูล, จัดการโพสต์รายเว็บ
 import { callTool } from "./mcpClient.js";
 import { addSite, removeSite, hasSite, listSites } from "./sites.js";
+import { onboard } from "./onboard.js";
 
 // โดเมนที่เลือกอยู่ของแต่ละแชท (in-memory — รีเซ็ตเมื่อบอทรีสตาร์ท ให้ /use ใหม่)
 const active = new Map();
@@ -16,7 +17,8 @@ const HELP = `📋 คำสั่งทั้งหมดค่ะ
 
 — เริ่มต้น / เชื่อมเว็บ —
 /start หรือ /login — ดูสถานะ + เว็บที่เชื่อม
-/addsite <ชื่อ> <url> <key> — เชื่อมเว็บใหม่ (เว็บที่ลงปลั๊กอินแล้ว)
+/addsite <ชื่อ> <url> <key> — เชื่อมเว็บที่ลงปลั๊กอินแล้ว
+/onboard <ชื่อ> <url> <user> <pass> — ติดตั้งปลั๊กอินอัตโนมัติ (เว็บใหม่)
 /removesite <ชื่อ> — เอาเว็บออก
 /sites — ดูเว็บทั้งหมด
 /use <ชื่อ> — เลือกเว็บที่จะสั่งงาน (ตั้งเป็นค่าเริ่มต้นของแชทนี้)
@@ -98,6 +100,29 @@ export async function handleCommand(text, chatId) {
       setActive(chatId, name);
       if (h.isError) return `เพิ่ม "${name}" แล้ว แต่ตรวจสอบไม่ผ่าน ⚠️\n${h.text}\n(เช็ค url/key/ปลั๊กอินอีกที)`;
       return `✅ เชื่อมเว็บ "${name}" สำเร็จ และตั้งเป็นเว็บที่ใช้อยู่\n${h.text}`;
+    }
+
+    case "/onboard": {
+      const [name, url, user] = rest;
+      const pass = rest.slice(3).join(" "); // pass อาจมีช่องว่าง
+      if (!name || !url || !user || !pass)
+        return "รูปแบบ: /onboard <ชื่อ> <url> <admin-user> <admin-pass>\n(ติดตั้งปลั๊กอินอัตโนมัติให้เว็บใหม่)";
+      if (!/^[a-zA-Z0-9_-]+$/.test(name) || /^\d+$/.test(name) || name.startsWith("_"))
+        return "ชื่อเว็บใช้ a-z A-Z 0-9 _ - (ต้องมีตัวอักษร, ห้ามเป็นตัวเลขล้วน)";
+      if (!/^https?:\/\//.test(url)) return "url ต้องขึ้นต้น http:// หรือ https://";
+      try {
+        const { key, log } = await onboard({ url, user, pass });
+        addSite(name, url, key);
+        await callTool("reload_sites", {});
+        const h = await callTool("wp_health", { domain: name });
+        setActive(chatId, name);
+        const steps = log.join("\n");
+        const tail = "\n\n🔒 ลบข้อความ /onboard นี้ทิ้งด้วยนะคะ (มีรหัส admin อยู่)";
+        if (h.isError) return `${steps}\n\n⚠️ เชื่อมแล้วแต่เช็คไม่ผ่าน:\n${h.text}${tail}`;
+        return `${steps}\n\n✅ ติดตั้ง+เชื่อม "${name}" อัตโนมัติสำเร็จ! ตั้งเป็นเว็บที่ใช้อยู่${tail}`;
+      } catch (e) {
+        return `❌ onboard ไม่สำเร็จ: ${e.message}\n\nลองวิธี manual: อัปปลั๊กอินเอง → ตั้ง key → /addsite\n\n🔒 ลบข้อความ /onboard นี้ทิ้งด้วยนะคะ`;
+      }
     }
 
     case "/removesite":
