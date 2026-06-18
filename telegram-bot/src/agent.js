@@ -4,6 +4,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { listTools, callTool } from "./mcpClient.js";
 import { generateImage } from "./gemini.js";
+import { logEvent } from "./logger.js";
+
+// label ไทยของ action (ให้ /log อ่านง่าย)
+const ACTION_LABEL = {
+  wp_create_post: "สร้างโพสต์",
+  wp_update_post: "แก้โพสต์",
+  wp_delete_post: "ลบโพสต์",
+  wp_upload_media: "อัปรูป",
+  wp_run_action: "action",
+  wp_report: "ดูรายงาน",
+};
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MODEL = process.env.CLAUDE_MODEL || "claude-opus-4-8";
@@ -82,6 +93,19 @@ async function runTool(name, args) {
   // ถ้าแก้ตรงๆ จะทำให้ base64 ก้อนใหญ่รั่วเข้า context และถูกเก็บข้ามรอบ
   const resolved = resolveImageRefs(structuredClone(args));
   const { text, isError } = await callTool(name, resolved);
+  // เก็บ log กิจกรรมรายโดเมน (ทำอะไรไปบ้าง + สำเร็จ/ไม่สำเร็จ)
+  if (name.startsWith("wp_") && args && args.domain) {
+    let detail = isError ? text.slice(0, 150) : "ok";
+    if (!isError) {
+      try {
+        const j = JSON.parse(text);
+        if (j.id) detail = `ok id=${j.id}`;
+      } catch {
+        /* ไม่ใช่ JSON ก็ปล่อย */
+      }
+    }
+    logEvent({ level: isError ? "warn" : "info", domain: args.domain, chat: chatId, cmd: ACTION_LABEL[name] || name, msg: detail });
+  }
   return isError ? `ERROR: ${text}` : text;
 }
 
@@ -106,7 +130,7 @@ export function trimHistory(messages, max = 12) {
  * @param {string} userText
  * @param {Array} [history] ประวัติ messages เดิม (optional)
  */
-export async function runAgent(userText, history = [], activeDomain = null) {
+export async function runAgent(userText, history = [], activeDomain = null, chatId = "-") {
   const tools = toAnthropicTools(await listTools());
   const messages = [...history, { role: "user", content: userText }];
   const system = activeDomain
@@ -140,9 +164,12 @@ export async function runAgent(userText, history = [], activeDomain = null) {
       if (block.type !== "tool_use") continue;
       let out;
       try {
-        out = await runTool(block.name, block.input);
+        out = await runTool(block.name, block.input, chatId);
       } catch (e) {
         out = `ERROR: ${e.message}`;
+        if (block.input && block.input.domain) {
+          logEvent({ level: "error", domain: block.input.domain, chat: chatId, cmd: block.name, msg: e.message });
+        }
       }
       toolResults.push({ type: "tool_result", tool_use_id: block.id, content: out });
     }

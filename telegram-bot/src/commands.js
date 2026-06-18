@@ -3,6 +3,7 @@
 import { callTool } from "./mcpClient.js";
 import { addSite, removeSite, hasSite, listSites } from "./sites.js";
 import { onboard } from "./onboard.js";
+import { logEvent, readLog } from "./logger.js";
 
 // โดเมนที่เลือกอยู่ของแต่ละแชท (in-memory — รีเซ็ตเมื่อบอทรีสตาร์ท ให้ /use ใหม่)
 const active = new Map();
@@ -22,6 +23,10 @@ const HELP = `📋 คำสั่งทั้งหมดค่ะ
 /removesite <ชื่อ> — เอาเว็บออก
 /sites — ดูเว็บทั้งหมด
 /use <ชื่อ> — เลือกเว็บที่จะสั่งงาน (ตั้งเป็นค่าเริ่มต้นของแชทนี้)
+
+— สถานะ / ประวัติ —
+/status [ชื่อ|all] — สถานะแต่ละโดเมน (ออนไลน์/หลุด)
+/log [ชื่อ] [n] — ประวัติกิจกรรมของโดเมน (ทำอะไร เมื่อไหร่)
 
 — อ่านข้อมูล (ถ้าไม่ใส่ชื่อ จะใช้เว็บที่ /use ไว้) —
 /health [ชื่อ] — เช็คปลั๊กอินเว็บ
@@ -101,6 +106,7 @@ export async function handleCommand(text, chatId) {
       await callTool("reload_sites", {}); // ให้ MCP เห็นเว็บใหม่ทันที
       const h = await callTool("wp_health", { domain: name }); // ตรวจว่าเชื่อมติด
       setActive(chatId, name);
+      logEvent({ level: h.isError ? "warn" : "info", domain: name, chat: chatId, cmd: "addsite", msg: h.isError ? "verify failed" : "connected" });
       if (h.isError) return `เพิ่ม "${name}" แล้ว แต่ตรวจสอบไม่ผ่าน ⚠️\n${h.text}\n(เช็ค url/key/ปลั๊กอินอีกที)`;
       return `✅ เชื่อมเว็บ "${name}" สำเร็จ และตั้งเป็นเว็บที่ใช้อยู่\n${h.text}`;
     }
@@ -119,11 +125,13 @@ export async function handleCommand(text, chatId) {
         await callTool("reload_sites", {});
         const h = await callTool("wp_health", { domain: name });
         setActive(chatId, name);
+        logEvent({ level: h.isError ? "warn" : "info", domain: name, chat: chatId, cmd: "onboard", msg: h.isError ? "installed but verify failed" : "installed+connected" });
         const steps = log.join("\n");
         const tail = "\n\n🔒 ลบข้อความ /onboard นี้ทิ้งด้วยนะคะ (มีรหัส admin อยู่)";
         if (h.isError) return `${steps}\n\n⚠️ เชื่อมแล้วแต่เช็คไม่ผ่าน:\n${h.text}${tail}`;
         return `${steps}\n\n✅ ติดตั้ง+เชื่อม "${name}" อัตโนมัติสำเร็จ! ตั้งเป็นเว็บที่ใช้อยู่${tail}`;
       } catch (e) {
+        logEvent({ level: "error", domain: name, chat: chatId, cmd: "onboard", msg: e.message });
         return `❌ onboard ไม่สำเร็จ: ${e.message}\n\nลองวิธี manual: อัปปลั๊กอินเอง → ตั้ง key → /addsite\n\n🔒 ลบข้อความ /onboard นี้ทิ้งด้วยนะคะ`;
       }
     }
@@ -156,13 +164,57 @@ export async function handleCommand(text, chatId) {
       const r = targetAndId(rest, chatId);
       if (r.err) return r.err;
       const status = cmd === "/publish" ? "publish" : "draft";
-      return (await callTool("wp_update_post", { domain: r.domain, id: r.id, status })).text;
+      const res = await callTool("wp_update_post", { domain: r.domain, id: r.id, status });
+      logEvent({ level: res.isError ? "warn" : "info", domain: r.domain, chat: chatId, cmd: status === "publish" ? "เผยแพร่" : "draft", msg: res.isError ? res.text.slice(0, 120) : `ok id=${r.id}` });
+      return res.text;
     }
 
     case "/delete": {
       const r = targetAndId(rest, chatId);
       if (r.err) return r.err;
-      return (await callTool("wp_delete_post", { domain: r.domain, id: r.id })).text;
+      const res = await callTool("wp_delete_post", { domain: r.domain, id: r.id });
+      logEvent({ level: res.isError ? "warn" : "info", domain: r.domain, chat: chatId, cmd: "ลบโพสต์", msg: res.isError ? res.text.slice(0, 120) : `ok id=${r.id}` });
+      return res.text;
+    }
+
+    case "/status": {
+      const target = arg.trim();
+      const domains = !target || target === "all" ? listSites().map((s) => s.domain) : [target];
+      if (!domains.length) return "ยังไม่มีเว็บที่เชื่อม — /addsite หรือ /onboard ก่อน";
+      const rows = await Promise.all(
+        domains.map(async (d) => {
+          const h = await callTool("wp_health", { domain: d });
+          if (h.isError) {
+            const reason = /401|unauthor|key/i.test(h.text)
+              ? "🔴 auth หลุด/key ผิด"
+              : /timeout|ENOTFOUND|ECONN|fetch failed|getaddr/i.test(h.text)
+              ? "🔴 เข้าไม่ถึงเว็บ"
+              : "🔴 ผิดพลาด";
+            logEvent({ level: "warn", domain: d, chat: chatId, cmd: "/status", msg: `down ${reason} ${h.text.slice(0, 100)}` });
+            return `${d}: ${reason}`;
+          }
+          let ver = "";
+          try {
+            const j = JSON.parse(h.text);
+            ver = ` (v${j.version || "?"}${j.seo_plugin ? ", " + j.seo_plugin : ""})`;
+          } catch {}
+          return `${d}: 🟢 ออนไลน์${ver}`;
+        })
+      );
+      return "📊 สถานะโดเมน:\n" + rows.join("\n");
+    }
+
+    case "/log": {
+      const t = rest.filter(Boolean);
+      let domain = null;
+      let n = 15;
+      for (const x of t) {
+        if (/^\d+$/.test(x)) n = Number(x);
+        else if (hasSite(x)) domain = x;
+      }
+      const lines = readLog(n, domain);
+      const head = domain ? `🗒️ กิจกรรม ${domain} (ล่าสุด ${lines.length}):` : `🗒️ log ล่าสุด (${lines.length}):`;
+      return lines.length ? head + "\n" + lines.join("\n") : domain ? `ยังไม่มีกิจกรรมของ ${domain}` : "ยังไม่มี log";
     }
 
     case "/action": {
@@ -188,7 +240,9 @@ export async function handleCommand(text, chatId) {
           return 'payload ต้องเป็น JSON เช่น {"id":5}';
         }
       }
-      return (await callTool("wp_run_action", { domain, name, payload })).text;
+      const res = await callTool("wp_run_action", { domain, name, payload });
+      logEvent({ level: res.isError ? "warn" : "info", domain, chat: chatId, cmd: `action:${name}`, msg: res.isError ? res.text.slice(0, 120) : "ok" });
+      return res.text;
     }
 
     default:

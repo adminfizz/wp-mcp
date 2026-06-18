@@ -5,6 +5,7 @@ import TelegramBot from "node-telegram-bot-api";
 import { initMcp } from "./mcpClient.js";
 import { handleCommand, getActive } from "./commands.js";
 import { runAgent, trimHistory } from "./agent.js";
+import { logEvent } from "./logger.js";
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
@@ -43,12 +44,13 @@ bot.on("message", async (msg) => {
     // 2) ภาษาธรรมชาติ → agent (Claude + MCP) ใช้เว็บที่ /use ไว้เป็นค่าเริ่มต้น
     await bot.sendChatAction(msg.chat.id, "typing");
     const history = histories.get(msg.chat.id) || [];
-    const { text: reply, messages } = await runAgent(text, history, getActive(msg.chat.id));
+    const { text: reply, messages } = await runAgent(text, history, getActive(msg.chat.id), msg.chat.id);
     // เก็บประวัติแบบตัดที่ขอบ user turn (กัน 400)
     histories.set(msg.chat.id, trimHistory(messages, 12));
     await bot.sendMessage(msg.chat.id, reply || "เรียบร้อยค่ะ");
   } catch (e) {
     console.error("handle error:", e);
+    logEvent({ level: "error", chat: msg.chat.id, cmd: (text || "").split(/\s+/)[0], msg: e.message });
     await bot.sendMessage(msg.chat.id, `เกิดข้อผิดพลาดค่ะ: ${e.message}`);
   }
 });
@@ -67,6 +69,8 @@ bot.on("polling_error", (e) => console.error("polling_error:", e.message));
       { command: "use", description: "เลือกเว็บที่จะสั่งงาน <ชื่อ>" },
       { command: "report", description: "สรุปภาพรวมเว็บ [ชื่อ]" },
       { command: "health", description: "เช็คปลั๊กอิน [ชื่อ]" },
+      { command: "status", description: "สถานะแต่ละโดเมน (ออนไลน์/หลุด) [ชื่อ|all]" },
+      { command: "log", description: "ประวัติกิจกรรมรายโดเมน [ชื่อ] [n]" },
       { command: "posts", description: "โพสต์ล่าสุด [ชื่อ]" },
       { command: "publish", description: "เผยแพร่โพสต์ [ชื่อ] <id>" },
       { command: "draft", description: "เปลี่ยนเป็น draft [ชื่อ] <id>" },
