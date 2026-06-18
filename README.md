@@ -4,7 +4,8 @@
 โดยมี **MCP** เป็นตัวกลางเชื่อมคำสั่งเข้ากับปลั๊กอินที่เราเขียนเอง
 
 🚀 **ติดตั้งครั้งแรก เริ่มที่ [`docs/INSTALL.md`](./docs/INSTALL.md)** (runbook ตั้งแต่ศูนย์ + ตัวอย่าง)
-📖 ใช้งานรายวัน/คำสั่ง [`docs/USAGE.md`](./docs/USAGE.md) · 📐 ออกแบบ/flow [`ARCHITECTURE.md`](./ARCHITECTURE.md) · 🗺️ แผนงาน [`docs/ROADMAP.md`](./docs/ROADMAP.md)
+📖 ใช้งานรายวัน/คำสั่ง [`docs/USAGE.md`](./docs/USAGE.md) · 🔌 ใช้ปลั๊กอินรายโดเมนผ่าน Telegram [`docs/CONNECT-EXISTING.md`](./docs/CONNECT-EXISTING.md)
+📐 ออกแบบ/flow [`ARCHITECTURE.md`](./ARCHITECTURE.md) · 🗺️ แผนงาน [`docs/ROADMAP.md`](./docs/ROADMAP.md)
 
 ---
 

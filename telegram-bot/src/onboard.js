@@ -39,11 +39,25 @@ class Jar {
 }
 
 async function jfetch(jar, url, opts = {}) {
-  const headers = { ...(opts.headers || {}) };
-  const cookie = jar.header();
-  if (cookie) headers.Cookie = cookie;
-  const res = await fetch(url, { ...opts, headers, redirect: "manual" });
-  jar.store(res);
+  // ตาม redirect เองสำหรับ GET (เลี่ยง https-force/canonical 302 ที่ทำให้ body ว่าง → scrape nonce ไม่เจอ)
+  const followGet = !opts.method || opts.method === "GET";
+  let cur = url;
+  let res;
+  for (let hop = 0; hop < 6; hop++) {
+    const headers = { ...(opts.headers || {}) };
+    const cookie = jar.header();
+    if (cookie) headers.Cookie = cookie;
+    res = await fetch(cur, { ...opts, headers, redirect: "manual" });
+    jar.store(res);
+    if (followGet && res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      if (loc) {
+        cur = new URL(loc, cur).href;
+        continue;
+      }
+    }
+    break;
+  }
   return res;
 }
 
@@ -51,6 +65,19 @@ const grab = (html, re) => {
   const m = html.match(re);
   return m ? m[1] : null;
 };
+
+// ดึง _wpnonce/_wp_http_referer เฉพาะใน <form> ที่มี marker — กันหยิบ nonce ของ admin notice ผิดตัว
+function formFields(html, marker) {
+  for (const f of html.split(/<form/i)) {
+    if (f.includes(marker)) {
+      return {
+        nonce: (f.match(/name="_wpnonce"[^>]*\bvalue="([^"]+)"/) || [])[1] || null,
+        referer: (f.match(/name="_wp_http_referer"[^>]*\bvalue="([^"]+)"/) || [])[1] || null,
+      };
+    }
+  }
+  return { nonce: null, referer: null };
+}
 
 function absolutize(base, href) {
   href = href.replace(/&amp;/g, "&");
@@ -100,8 +127,9 @@ export async function onboard({ url, user, pass, statusCb }) {
   // 3) อัปโหลด + activate
   say("📦 อัปโหลดปลั๊กอิน...");
   const upPage = await (await jfetch(jar, `${url}/wp-admin/plugin-install.php?tab=upload`, {})).text();
-  const upNonce = grab(upPage, /name="_wpnonce"[^>]*\bvalue="([^"]+)"/);
-  const upRef = grab(upPage, /name="_wp_http_referer"[^>]*\bvalue="([^"]+)"/) || "/wp-admin/plugin-install.php?tab=upload";
+  const upF = formFields(upPage, "pluginzip"); // ฟอร์มอัปโหลด (มี input name=pluginzip)
+  const upNonce = upF.nonce;
+  const upRef = upF.referer || "/wp-admin/plugin-install.php?tab=upload";
   if (!upNonce) throw new Error("หา nonce อัปโหลดไม่เจอ (อาจถูก security plugin บล็อก หรือ login ไม่ผ่านจริง)");
 
   const fd = new FormData();
@@ -114,7 +142,7 @@ export async function onboard({ url, user, pass, statusCb }) {
   ).text();
 
   let activateHref = grab(instHtml, /href="([^"]*action=activate[^"]*kim-mcp-bridge[^"]*)"/);
-  const exists = /already exists|มีอยู่แล้ว/i.test(instHtml);
+  const exists = /already (exists|installed)|มีอยู่แล้ว|ติดตั้งอยู่แล้ว/i.test(instHtml);
   if (!activateHref) {
     // อาจติดตั้งไว้แล้ว → หา activate ที่ plugins.php
     const plHtml = await (await jfetch(jar, `${url}/wp-admin/plugins.php`, {})).text();
@@ -130,9 +158,10 @@ export async function onboard({ url, user, pass, statusCb }) {
   // 4) ตั้ง API key ผ่านฟอร์มตั้งค่า (options.php) — nonce อยู่บนหน้า Settings > Kim MCP
   say("🔑 ตั้ง API key...");
   const setPage = await (await jfetch(jar, `${url}/wp-admin/options-general.php?page=kim-mcp`, {})).text();
-  const sNonce = grab(setPage, /name="_wpnonce"[^>]*\bvalue="([^"]+)"/);
-  const sRef = grab(setPage, /name="_wp_http_referer"[^>]*\bvalue="([^"]+)"/) || "/wp-admin/options-general.php?page=kim-mcp";
-  if (!sNonce) throw new Error("เปิดหน้าตั้งค่าไม่ได้ — ปลั๊กอิน activate สำเร็จไหม?");
+  const setF = formFields(setPage, "kim_mcp_group"); // เจาะฟอร์มที่มี option_page=kim_mcp_group กันหยิบ nonce ผิดตัว
+  const sNonce = setF.nonce;
+  const sRef = setF.referer || "/wp-admin/options-general.php?page=kim-mcp";
+  if (!sNonce) throw new Error("เปิดหน้าตั้งค่า/ไม่เจอฟอร์มตั้งค่า — ปลั๊กอิน activate สำเร็จไหม?");
 
   const key = randomBytes(24).toString("hex");
   const sBody = new URLSearchParams({
@@ -142,13 +171,17 @@ export async function onboard({ url, user, pass, statusCb }) {
     _wp_http_referer: sRef,
     kim_mcp_api_key: key,
   });
-  const setRes = await jfetch(jar, `${url}/wp-admin/options.php`, {
+  await jfetch(jar, `${url}/wp-admin/options.php`, {
     method: "POST",
     body: sBody,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
-  if (setRes.status >= 400) throw new Error(`ตั้ง key ไม่สำเร็จ (HTTP ${setRes.status})`);
-  say("✅ ตั้ง key สำเร็จ");
+  // ยืนยันจริง: เรียก health ด้วย key ใหม่ (พิสูจน์ว่า key ถูกบันทึก + ปลั๊กอิน active + เข้าถึงได้)
+  // เชื่อถือได้กว่าเช็ค status เพราะ options.php สำเร็จ=302 แต่ error (wp_die) คืน 200
+  const hv = await fetch(`${url}/wp-json/kim/v1/health`, { headers: { "X-Kim-Key": key } });
+  if (!hv.ok)
+    throw new Error(`ตั้ง key แล้วแต่ทดสอบไม่ผ่าน (health HTTP ${hv.status}) — ปลั๊กอินอาจ activate ไม่สำเร็จ หรือ nonce ไม่ถูก`);
+  say("✅ ตั้ง key + ยืนยัน health สำเร็จ");
 
   return { key, url, log };
 }

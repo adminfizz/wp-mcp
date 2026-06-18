@@ -71,6 +71,7 @@ bot.on("polling_error", (e) => console.error("polling_error:", e.message));
       { command: "publish", description: "เผยแพร่โพสต์ [ชื่อ] <id>" },
       { command: "draft", description: "เปลี่ยนเป็น draft [ชื่อ] <id>" },
       { command: "delete", description: "ลบโพสต์ [ชื่อ] <id>" },
+      { command: "action", description: "สั่ง custom action [ชื่อ] <action> [json]" },
       { command: "removesite", description: "เอาเว็บออก <ชื่อ>" },
       { command: "help", description: "ช่วยเหลือ" },
     ]);

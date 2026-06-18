@@ -138,6 +138,7 @@ node add-site.mjs remove siteA
 | `/publish [ชื่อ] <id>` | เผยแพร่โพสต์ |
 | `/draft [ชื่อ] <id>` | เปลี่ยนเป็น draft |
 | `/delete [ชื่อ] <id>` | ลบโพสต์ |
+| `/action [ชื่อ] <action> [json]` | สั่ง custom action (ต่อปลั๊กอินเดิม — ดู [CONNECT-EXISTING.md](./CONNECT-EXISTING.md)) |
 | `/help` | คำสั่งทั้งหมด |
 | _ภาษาไทย_ | เขียนบทความ/งานซับซ้อน → Claude + Gemini |
 

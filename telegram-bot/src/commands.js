@@ -33,6 +33,9 @@ const HELP = `📋 คำสั่งทั้งหมดค่ะ
 /draft [ชื่อ] <id> — เปลี่ยนเป็น draft
 /delete [ชื่อ] <id> — ลบโพสต์
 
+— ต่อปลั๊กอิน/ฟังก์ชันเดิมของเว็บ —
+/action [ชื่อ] <action> [json] — สั่ง custom action (เช่น เคลียร์แคช, sync สต็อก)
+
 — ภาษาไทย (เขียนบทความ/งานซับซ้อน) —
 พิมพ์ได้เลย เช่น "เขียนบทความเรื่องวิธีชงกาแฟลงเว็บA ใส่รูปด้วย"`;
 
@@ -160,6 +163,32 @@ export async function handleCommand(text, chatId) {
       const r = targetAndId(rest, chatId);
       if (r.err) return r.err;
       return (await callTool("wp_delete_post", { domain: r.domain, id: r.id })).text;
+    }
+
+    case "/action": {
+      // /action [ชื่อเว็บ] <action> [json]  — สั่ง custom action ที่ปลั๊กอินเดิมลงทะเบียนไว้
+      const t = rest.filter(Boolean);
+      let domain, name, payloadTokens;
+      if (t.length >= 1 && hasSite(t[0])) {
+        domain = t[0];
+        name = t[1];
+        payloadTokens = t.slice(2);
+      } else {
+        domain = getActive(chatId);
+        name = t[0];
+        payloadTokens = t.slice(1);
+      }
+      if (!domain) return "เลือกเว็บก่อน (/use <ชื่อ>) หรือพิมพ์ /action <ชื่อเว็บ> <action>";
+      if (!name) return "ระบุชื่อ action เช่น /action clear_cache";
+      let payload = {};
+      if (payloadTokens.length) {
+        try {
+          payload = JSON.parse(payloadTokens.join(" "));
+        } catch {
+          return 'payload ต้องเป็น JSON เช่น {"id":5}';
+        }
+      }
+      return (await callTool("wp_run_action", { domain, name, payload })).text;
     }
 
     default:
