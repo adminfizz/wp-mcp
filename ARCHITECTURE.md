@@ -116,12 +116,16 @@ wp-mcp/
     ├── package.json
     ├── ecosystem.config.js    ← pm2
     ├── src/
-    │   ├── bot.js             ← รับข้อความ Telegram
+    │   ├── bot.js             ← รับข้อความ Telegram + active domain ต่อแชท
     │   ├── mcpClient.js       ← ★ เชื่อม MCP (spawn ชั้น 2)
     │   ├── agent.js           ← ★ Claude agent loop (NL → tools)
-    │   ├── commands.js        ← parser ของ slash command
+    │   ├── commands.js        ← slash ชุดเต็ม: login/addsite/use/publish...
+    │   ├── sites.js           ← จัดการทะเบียนเว็บ (เขียน domains.json ตอน /addsite)
     │   └── gemini.js          ← สร้างรูปจากเนื้อหา
     └── .env.example
+
+หมายเหตุ: `/addsite` เขียน domains.json แล้วเรียก MCP tool `reload_sites`
+ให้ชั้น 2 เห็นเว็บใหม่ทันที โดยไม่ต้องรีสตาร์ท
 ```
 
 ---

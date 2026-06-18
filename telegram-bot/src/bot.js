@@ -3,7 +3,7 @@
 import "dotenv/config";
 import TelegramBot from "node-telegram-bot-api";
 import { initMcp } from "./mcpClient.js";
-import { handleCommand } from "./commands.js";
+import { handleCommand, getActive } from "./commands.js";
 import { runAgent, trimHistory } from "./agent.js";
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -34,16 +34,16 @@ bot.on("message", async (msg) => {
 
   try {
     // 1) ลองจับ slash command ก่อน
-    const cmdReply = await handleCommand(text);
+    const cmdReply = await handleCommand(text, msg.chat.id);
     if (cmdReply !== null) {
       await bot.sendMessage(msg.chat.id, cmdReply);
       return;
     }
 
-    // 2) ภาษาธรรมชาติ → agent (Claude + MCP)
+    // 2) ภาษาธรรมชาติ → agent (Claude + MCP) ใช้เว็บที่ /use ไว้เป็นค่าเริ่มต้น
     await bot.sendChatAction(msg.chat.id, "typing");
     const history = histories.get(msg.chat.id) || [];
-    const { text: reply, messages } = await runAgent(text, history);
+    const { text: reply, messages } = await runAgent(text, history, getActive(msg.chat.id));
     // เก็บประวัติแบบตัดที่ขอบ user turn (กัน 400)
     histories.set(msg.chat.id, trimHistory(messages, 12));
     await bot.sendMessage(msg.chat.id, reply || "เรียบร้อยค่ะ");
@@ -60,10 +60,17 @@ bot.on("polling_error", (e) => console.error("polling_error:", e.message));
   try {
     await initMcp();
     await bot.setMyCommands([
+      { command: "login", description: "ดูสถานะ + เว็บที่เชื่อม" },
+      { command: "addsite", description: "เชื่อมเว็บใหม่ <ชื่อ> <url> <key>" },
       { command: "sites", description: "ดูเว็บทั้งหมด" },
-      { command: "report", description: "สรุปภาพรวมเว็บ <เว็บ>" },
-      { command: "health", description: "เช็คปลั๊กอิน <เว็บ>" },
-      { command: "posts", description: "โพสต์ล่าสุด <เว็บ>" },
+      { command: "use", description: "เลือกเว็บที่จะสั่งงาน <ชื่อ>" },
+      { command: "report", description: "สรุปภาพรวมเว็บ [ชื่อ]" },
+      { command: "health", description: "เช็คปลั๊กอิน [ชื่อ]" },
+      { command: "posts", description: "โพสต์ล่าสุด [ชื่อ]" },
+      { command: "publish", description: "เผยแพร่โพสต์ [ชื่อ] <id>" },
+      { command: "draft", description: "เปลี่ยนเป็น draft [ชื่อ] <id>" },
+      { command: "delete", description: "ลบโพสต์ [ชื่อ] <id>" },
+      { command: "removesite", description: "เอาเว็บออก <ชื่อ>" },
       { command: "help", description: "ช่วยเหลือ" },
     ]);
     console.log("wp-mcp-bot พร้อมทำงาน ✅");

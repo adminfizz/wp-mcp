@@ -2,8 +2,14 @@
 // ใช้ @google/genai (SDK ใหม่) ที่รองรับโมเดลสร้างภาพ gemini-2.5-flash-image โดยตรง
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 const MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+
+// สร้าง client แบบ lazy — ตอนใช้จริง (กัน warning ตอน import ถ้ายังไม่ตั้ง key)
+let _ai = null;
+function client() {
+  if (!_ai) _ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  return _ai;
+}
 
 /**
  * สร้างรูปจาก prompt ภาษาไทย/อังกฤษ
@@ -17,7 +23,7 @@ const MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 export async function generateImage(prompt) {
   if (!process.env.GEMINI_API_KEY) throw new Error("ยังไม่ได้ตั้ง GEMINI_API_KEY");
 
-  const response = await ai.models.generateContent({
+  const response = await client().models.generateContent({
     model: MODEL,
     contents: `สร้างภาพประกอบบทความคุณภาพสูง สวยงาม เหมาะใช้เป็นภาพปก (featured image): ${prompt}`,
   });

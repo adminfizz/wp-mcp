@@ -53,10 +53,10 @@ function toAnthropicTools(mcpTools) {
 function resolveImageRefs(args) {
   if (!args || typeof args !== "object") return args;
   const fix = (img) => {
-    if (img && img.ref && imageStore.has(img.ref)) {
-      const { base64 } = imageStore.get(img.ref);
+    if (img && img.ref) {
       const { ref, ...rest } = img;
-      return { ...rest, base64 };
+      if (imageStore.has(ref)) return { ...rest, base64: imageStore.get(ref).base64 };
+      return rest; // ref ใช้ไม่ได้ (ถูก evict/โมเดลหลอน) → ตัดทิ้ง ไม่ส่งค่าปลอมไป WP
     }
     return img;
   };
@@ -75,6 +75,7 @@ async function runTool(name, args) {
     const { base64, mime } = await generateImage(args.prompt || "");
     const ref = `img_${++imgCounter}`;
     imageStore.set(ref, { base64, mime });
+    if (imageStore.size > 24) imageStore.delete(imageStore.keys().next().value); // กัน memory บวม (FIFO)
     return `สร้างรูปแล้ว (ref="${ref}") — ใส่ใน featured_image: { ref: "${ref}", alt: "..." }`;
   }
   // ★ สำคัญ: clone ก่อน เพราะ args === block.input (อยู่ใน messages ที่ส่งกลับ Claude)
@@ -105,16 +106,19 @@ export function trimHistory(messages, max = 12) {
  * @param {string} userText
  * @param {Array} [history] ประวัติ messages เดิม (optional)
  */
-export async function runAgent(userText, history = []) {
+export async function runAgent(userText, history = [], activeDomain = null) {
   const tools = toAnthropicTools(await listTools());
   const messages = [...history, { role: "user", content: userText }];
+  const system = activeDomain
+    ? `${SYSTEM}\n\nโดเมนเริ่มต้นของแชทนี้คือ "${activeDomain}" — ใช้เป็นค่า domain เมื่อผู้ใช้ไม่ได้ระบุเว็บ`
+    : SYSTEM;
 
   for (let step = 0; step < 12; step++) {
     const res = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 8000,
       thinking: { type: "adaptive" },
-      system: SYSTEM,
+      system,
       tools,
       messages,
     });

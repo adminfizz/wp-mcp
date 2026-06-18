@@ -5,28 +5,33 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { domainsFilePath } from "./sites.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-let _client = null;
+// memoize "promise" ไม่ใช่ client — กันกรณีหลายข้อความเข้าพร้อมกันตอนบอทเพิ่งเริ่ม
+// แล้ว spawn MCP server ซ้ำซ้อน (เด็กกำพร้า + อ่าน domains.json ซ้อน)
+let _clientPromise = null;
 
-/** เปิดการเชื่อมต่อ MCP (เรียกครั้งเดียวตอนบอทเริ่ม) */
-export async function initMcp() {
-  if (_client) return _client;
-
-  const entry = resolve(__dirname, "..", process.env.MCP_SERVER_ENTRY || "../mcp-server/src/index.js");
-
-  const transport = new StdioClientTransport({
-    command: process.execPath, // node ตัวเดียวกัน
-    args: [entry],
-    // ส่ง env ต่อให้ MCP server (ตำแหน่งทะเบียนโดเมน)
-    env: { ...process.env, DOMAINS_FILE: process.env.DOMAINS_FILE || "" },
+/** เปิดการเชื่อมต่อ MCP (เรียกครั้งเดียว ที่เหลือใช้ตัวเดิม) */
+export function initMcp() {
+  if (_clientPromise) return _clientPromise;
+  _clientPromise = (async () => {
+    const entry = resolve(__dirname, "..", process.env.MCP_SERVER_ENTRY || "../mcp-server/src/index.js");
+    const transport = new StdioClientTransport({
+      command: process.execPath, // node ตัวเดียวกัน
+      args: [entry],
+      // ส่ง DOMAINS_FILE เป็น absolute → บอท (sites.js) เขียน / MCP (registry.js) อ่าน ไฟล์เดียวกันแน่นอน
+      env: { ...process.env, DOMAINS_FILE: domainsFilePath() },
+    });
+    const client = new Client({ name: "wp-mcp-bot", version: "0.1.0" });
+    await client.connect(transport);
+    return client;
+  })().catch((e) => {
+    _clientPromise = null; // ล้มเหลว → เคลียร์ ให้เรียกใหม่ได้
+    throw e;
   });
-
-  const client = new Client({ name: "wp-mcp-bot", version: "0.1.0" });
-  await client.connect(transport);
-  _client = client;
-  return client;
+  return _clientPromise;
 }
 
 /** ดึงรายการ tools จาก MCP server (รูปแบบ JSON schema) */

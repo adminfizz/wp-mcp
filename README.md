@@ -57,11 +57,18 @@ pm2 start ecosystem.config.js     # หรือ npm start
 
 ## ใช้งานใน Telegram
 
-**Slash (เร็ว):**
-- `/sites` — ดูเว็บทั้งหมด
-- `/report siteA` — สรุปภาพรวมเว็บ
-- `/health siteA` — เช็คปลั๊กอิน
-- `/posts siteA` — โพสต์ล่าสุด
+📖 คู่มือใช้งานละเอียด (เริ่มตั้งแต่ login) ที่ [`docs/USAGE.md`](./docs/USAGE.md)
+
+**เริ่มต้น (login → เชื่อมเว็บ → เลือก → สั่ง):**
+```
+/start                                ← login บอท
+/addsite siteA https://a.com KEY      ← เชื่อมเว็บ (เว็บที่ลงปลั๊กอินแล้ว) บอทเช็ค health ให้
+/use siteA                            ← เลือกเว็บที่จะสั่งงาน
+/report                               ← ลองอ่านข้อมูล
+```
+
+**Slash (เร็ว):** `/sites` `/use` `/health [เว็บ]` `/report [เว็บ]` `/posts [เว็บ]`
+`/publish [เว็บ] <id>` `/draft [เว็บ] <id>` `/delete [เว็บ] <id>` · ไม่ใส่ชื่อเว็บ = ใช้เว็บที่ `/use` ไว้
 
 **ภาษาไทย (ยืดหยุ่น):**
 - "เขียนบทความเรื่องวิธีชงกาแฟดริปลงเว็บA ใส่รูปสวยๆด้วย"

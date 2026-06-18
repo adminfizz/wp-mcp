@@ -34,6 +34,11 @@ export function loadSites() {
   return sites;
 }
 
+export function reloadSites() {
+  _sites = null;
+  return loadSites();
+}
+
 export function getSite(domain) {
   const sites = loadSites();
   const site = sites[domain];

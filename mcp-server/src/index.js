@@ -5,7 +5,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { callWp } from "./wpClient.js";
-import { listSiteNames } from "./registry.js";
+import { listSiteNames, reloadSites } from "./registry.js";
 
 const server = new McpServer({ name: "wp-mcp-server", version: "0.1.0" });
 
@@ -38,6 +38,19 @@ server.registerTool(
   { description: "แสดงรายชื่อโดเมนทั้งหมดที่คุมได้ (ไม่แสดง key)", inputSchema: {} },
   async () => {
     try {
+      return ok(listSiteNames());
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.registerTool(
+  "reload_sites",
+  { description: "โหลดทะเบียนโดเมนใหม่จากไฟล์ (เรียกหลังเพิ่ม/ลบเว็บ เพื่อให้มีผลทันที)", inputSchema: {} },
+  async () => {
+    try {
+      reloadSites();
       return ok(listSiteNames());
     } catch (e) {
       return fail(e);
