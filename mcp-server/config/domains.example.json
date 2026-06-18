@@ -1,0 +1,11 @@
+{
+  "_comment": "ก็อปไฟล์นี้เป็น domains.json แล้วใส่ของจริง (domains.json อยู่ใน .gitignore)",
+  "siteA": {
+    "url": "https://example-a.com",
+    "key": "ใส่ API key ที่ตั้งใน Settings>Kim MCP ของเว็บนี้"
+  },
+  "siteB": {
+    "url": "https://example-b.com",
+    "key": "คีย์ของเว็บ B"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "wp-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server เชื่อมคำสั่งเข้ากับปลั๊กอิน kim-mcp-bridge บน WordPress หลายโดเมน",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "dotenv": "^16.4.0",
+    "zod": "^3.23.0"
+  }
+}

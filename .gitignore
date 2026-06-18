@@ -1,0 +1,25 @@
+# secrets / config ที่มีกุญแจ — ห้ามขึ้น git เด็ดขาด
+.env
+.env.*
+!.env.example
+**/config/domains.json
+*.key
+
+# node
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+
+# logs / runtime
+*.log
+.pm2/
+data/
+
+# php test sandbox (เครื่อง local เท่านั้น)
+/php83/
+/wp-test/
+test/*.sqlite
+
+# os
+Thumbs.db
+.DS_Store

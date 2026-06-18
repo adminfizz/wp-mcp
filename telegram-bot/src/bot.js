@@ -1,0 +1,74 @@
+// bot.js — จุดเข้าบอท Telegram (รันด้วย pm2)
+// รับข้อความ → ถ้าเป็น slash จับด้วย commands.js, ถ้าเป็นภาษาธรรมชาติส่งเข้า agent (Claude+MCP)
+import "dotenv/config";
+import TelegramBot from "node-telegram-bot-api";
+import { initMcp } from "./mcpClient.js";
+import { handleCommand } from "./commands.js";
+import { runAgent } from "./agent.js";
+
+const token = process.env.TELEGRAM_BOT_TOKEN;
+if (!token) {
+  console.error("ยังไม่ได้ตั้ง TELEGRAM_BOT_TOKEN ใน .env");
+  process.exit(1);
+}
+
+const bot = new TelegramBot(token, { polling: true });
+
+// เช็คสิทธิ์ผู้สั่ง (เหมือน slip-bot)
+function allowed(msg) {
+  const list = (process.env.ALLOWED_CHAT_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (list.length === 0) return true; // ว่าง = อนุญาตทุกคน
+  return list.includes(String(msg.chat.id));
+}
+
+// เก็บประวัติบทสนทนาต่อ chat (สั้นๆ พอให้ต่อเนื่อง)
+const histories = new Map();
+
+bot.on("message", async (msg) => {
+  const text = msg.text;
+  if (!text) return;
+  if (!allowed(msg)) {
+    bot.sendMessage(msg.chat.id, `ขออภัยค่ะ chat นี้ไม่มีสิทธิ์ใช้งาน (id: ${msg.chat.id})`);
+    return;
+  }
+
+  try {
+    // 1) ลองจับ slash command ก่อน
+    const cmdReply = await handleCommand(text);
+    if (cmdReply !== null) {
+      await bot.sendMessage(msg.chat.id, cmdReply);
+      return;
+    }
+
+    // 2) ภาษาธรรมชาติ → agent (Claude + MCP)
+    await bot.sendChatAction(msg.chat.id, "typing");
+    const history = histories.get(msg.chat.id) || [];
+    const { text: reply, messages } = await runAgent(text, history);
+    // เก็บประวัติไว้ 12 ข้อความล่าสุด
+    histories.set(msg.chat.id, messages.slice(-12));
+    await bot.sendMessage(msg.chat.id, reply || "เรียบร้อยค่ะ");
+  } catch (e) {
+    console.error("handle error:", e);
+    await bot.sendMessage(msg.chat.id, `เกิดข้อผิดพลาดค่ะ: ${e.message}`);
+  }
+});
+
+bot.on("polling_error", (e) => console.error("polling_error:", e.message));
+
+// ตั้งเมนูคำสั่ง + เปิดการเชื่อม MCP ตอนเริ่ม
+(async () => {
+  try {
+    await initMcp();
+    await bot.setMyCommands([
+      { command: "sites", description: "ดูเว็บทั้งหมด" },
+      { command: "report", description: "สรุปภาพรวมเว็บ <เว็บ>" },
+      { command: "health", description: "เช็คปลั๊กอิน <เว็บ>" },
+      { command: "posts", description: "โพสต์ล่าสุด <เว็บ>" },
+      { command: "help", description: "ช่วยเหลือ" },
+    ]);
+    console.log("wp-mcp-bot พร้อมทำงาน ✅");
+  } catch (e) {
+    console.error("เริ่มบอทไม่สำเร็จ:", e.message);
+    process.exit(1);
+  }
+})();

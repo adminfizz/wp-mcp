@@ -1,0 +1,19 @@
+{
+  "name": "wp-mcp-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Telegram bot สั่งงาน WordPress หลายโดเมนผ่าน MCP + Claude เขียนบทความ + Gemini สร้างรูป",
+  "main": "src/bot.js",
+  "scripts": {
+    "start": "node src/bot.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "@google/generative-ai": "^0.21.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "dotenv": "^16.4.0",
+    "node-telegram-bot-api": "^0.66.0"
+  }
+}
