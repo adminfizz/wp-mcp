@@ -3,7 +3,8 @@
 สั่งงาน WordPress หลายเว็บ (เขียนบทความ + สร้างรูปจากเนื้อหา + ทำ SEO) ผ่าน Telegram
 โดยมี **MCP** เป็นตัวกลางเชื่อมคำสั่งเข้ากับปลั๊กอินที่เราเขียนเอง
 
-📐 อ่านการออกแบบ/flow เต็มที่ [`ARCHITECTURE.md`](./ARCHITECTURE.md) · 🗺️ แผนงานที่ [`docs/ROADMAP.md`](./docs/ROADMAP.md)
+🚀 **ติดตั้งครั้งแรก เริ่มที่ [`docs/INSTALL.md`](./docs/INSTALL.md)** (runbook ตั้งแต่ศูนย์ + ตัวอย่าง)
+📖 ใช้งานรายวัน/คำสั่ง [`docs/USAGE.md`](./docs/USAGE.md) · 📐 ออกแบบ/flow [`ARCHITECTURE.md`](./ARCHITECTURE.md) · 🗺️ แผนงาน [`docs/ROADMAP.md`](./docs/ROADMAP.md)
 
 ---
 
